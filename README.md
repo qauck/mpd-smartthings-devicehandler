@@ -1,0 +1,1 @@
+# mpd-smartthings-devicehandler
