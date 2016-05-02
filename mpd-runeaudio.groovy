@@ -15,7 +15,7 @@
  */
 metadata {
 	definition (name: "MPD", namespace: "org.uguess", author: "Shawn Q.") {
-    	capability "Lock"
+    	capability "Lock" // this is to simulate nextTrack/previousTrack to use with IFTTT
     	capability "Switch"
 		capability "Music Player"
         capability "Polling"
@@ -24,6 +24,9 @@ metadata {
         attribute "trackTitle", "string"
         attribute "trackAlbum", "string"
         attribute "trackArtist", "string"
+        attribute "modeRandom", "string"
+        attribute "modeRepeat", "string"
+        attribute "modeSingle", "string"
 	}
     
    	preferences {
@@ -58,16 +61,31 @@ metadata {
         }
         
         standardTile("unlock", "device.lock", width: 2, height: 2, canChangeIcon: true) {
-            state "locked", label: 'unlock/prev', action: "lock.unlock", icon: "st.Electronics.electronics16", backgroundColor: "#ffffff"
+            state "locked", label: 'Prev', action: "lock.unlock", icon: "st.Electronics.electronics16", backgroundColor: "#ffffff"
         }
         
         standardTile("lock", "device.lock", width: 2, height: 2, canChangeIcon: true) {
-            state "unlocked", label: 'lock/next', action: "lock.lock", icon: "st.Electronics.electronics16", backgroundColor: "#ffffff"
+            state "unlocked", label: 'Next', action: "lock.lock", icon: "st.Electronics.electronics16", backgroundColor: "#ffffff"
         }
         
-        controlTile("volume", "device.volume", "slider", height:2, width:6, range:"(0..100)") {
+        controlTile("volume", "device.volume", "slider", height:1, width:6, range:"(0..100)") {
         	state "volume", action:"music Player.setLevel"
     	}
+        
+        standardTile("random", "device.modeRandom", width: 2, height: 1, inactiveLabel: false, decoration: "flat") {
+			state "off", label: "Random", action: "toggleRandom"
+			state "on", label: "Random", action: "toggleRandom", backgroundColor: "#2980b9"
+		}
+        
+        standardTile("repeat", "device.modeRepeat", width: 2, height: 1, inactiveLabel: false, decoration: "flat") {
+			state "default", label: "Repeat", action: "toggleRepeat"
+			state "1", label: "Repeat", action: "toggleRepeat", backgroundColor: "#2980b9"
+		}
+        
+        standardTile("single", "device.modeSingle", width: 2, height: 1, inactiveLabel: false, decoration: "flat") {
+			state "default", label: "Single", action: "toggleSingle"
+			state "1", label: "Single", action: "toggleSingle", backgroundColor: "#2980b9"
+		}
         
         standardTile("play", "device.status", width: 2, height: 2, canChangeIcon: false, inactiveLabel: true, canChangeBackground: false) {
 			state "default", label: "Play", action: "music Player.play", icon: "st.Electronics.electronics2", backgroundColor: "#27AE60"
@@ -95,8 +113,8 @@ metadata {
 			state "default", label: "Refresh", action: "refresh.refresh", icon: "st.secondary.refresh", backgroundColor: "#27AE60"
 		}
         
-        main "nowplaying"
-		details(["nowplaying", "switch", "unlock", "lock", "volume", "play", "pause", "stop", "previous", "next", "refresh"])
+        main "switch"
+		details(["nowplaying", "switch", "unlock", "lock", "volume", "random", "repeat", "single", "play", "pause", "stop", "previous", "next", "refresh"])
 	}
 }
 
@@ -130,17 +148,17 @@ def parse(String description) {
     def state = parseResponse(body, "state")
     if (state == "stop"){
         sendEvent(name: "status", value: "stopped")
-        sendEvent(name: "switch", value: "off");
+        sendEvent(name: "switch", value: "off")
     }else if (state == "pause"){
-        sendEvent(name: "status", value: "paused");
+        sendEvent(name: "status", value: "paused")
     }else if (state == "play"){
-        sendEvent(name: "status", value: "playing");
-        sendEvent(name: "switch", value: "on");
+        sendEvent(name: "status", value: "playing")
+        sendEvent(name: "switch", value: "on")
     }
     
     def volume = parseResponse(body, "volume")
     if (volume!=null){
-    	sendEvent(name: "volume", value: Integer.parseInt(volume));
+    	sendEvent(name: "volume", value: Integer.parseInt(volume))
     }
     
     def songPos = parseResponse(body, "song")
@@ -148,12 +166,27 @@ def parse(String description) {
     	hubGet("playlistinfo%20" + Integer.parseInt(songPos))
     }
     
+    def random = parseResponse(body, "random")
+    if (random!=null){
+    	sendEvent(name: "modeRandom", value: random=="1"? "on":"off")
+    }
+    
+    def repeat = parseResponse(body, "repeat")
+    if (repeat!=null){
+    	sendEvent(name: "modeRepeat", value: repeat)
+    }
+    
+    def single = parseResponse(body, "single")
+    if (single!=null){
+    	sendEvent(name: "modeSingle", value: single)
+    }
+    
     def trackUpdated = false
     
     def title = parseResponse(body, "Title")
     if (title!=null){
     	trackUpdated = true
-    	sendEvent(name: "trackTitle", value: title);
+    	sendEvent(name: "trackTitle", value: title)
     }else{
     	title = parseResponse(body, "file")
         if (title!=null){
@@ -162,27 +195,27 @@ def parse(String description) {
             	title = title.substring(idx+1)
             }
         	trackUpdated = true
-            sendEvent(name: "trackTitle", value: title);
+            sendEvent(name: "trackTitle", value: title)
         }
     }
     
     def album = parseResponse(body, "Album")
     if (album!=null){
     	trackUpdated = true
-    	sendEvent(name: "trackAlbum", value: album);
+    	sendEvent(name: "trackAlbum", value: album)
     }
     
     def artist = parseResponse(body, "Artist")
     if (artist!=null){
     	trackUpdated = true
-    	sendEvent(name: "trackArtist", value: artist);
+    	sendEvent(name: "trackArtist", value: artist)
     }
     
     if (trackUpdated){
     	def desc = device.currentValue("trackArtist") + " - " + device.currentValue("trackAlbum") + "  | " + device.currentValue("status")
-       	sendEvent(name: "trackDescription", value: desc);             
+       	sendEvent(name: "trackDescription", value: desc)
     }
-        
+
 	// TODO: handle 'status' attribute
 	// TODO: handle 'level' attribute
 	// TODO: handle 'trackDescription' attribute
@@ -193,11 +226,11 @@ def parse(String description) {
 
 private String parseResponse(response, field){
 	def idx = response.indexOf(field + ':')
-    log.debug "start idx: " + idx
+    //log.debug "start idx: " + idx
     if (idx!=-1){
     	def len = field.size()+2
     	def endIdx = response.indexOf("\n", idx + len)
-        log.debug "end idx: " + endIdx
+        //log.debug "end idx: " + endIdx
         if (endIdx!=-1){
     		return response.substring(idx+len, endIdx).trim()
         }
@@ -262,6 +295,31 @@ def lock() {
 
 def unlock() {
 	previousTrack()
+}
+
+def toggleRandom(){
+	log.debug "toggle random"
+	if (device.currentValue("modeRandom")=="on"){
+    	hubGet("random%200");
+    }else{
+    	hubGet("random%201");
+    }
+}
+
+def toggleRepeat(){
+	if (device.currentValue("modeRepeat")=="1"){
+    	hubGet("repeat%200");
+    }else{
+    	hubGet("repeat%201");
+    }
+}
+
+def toggleSingle(){
+	if (device.currentValue("modeSingle")=="1"){
+    	hubGet("single%200");
+    }else{
+    	hubGet("single%201");
+    }
 }
 
 def play() {
